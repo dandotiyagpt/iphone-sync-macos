@@ -12,6 +12,7 @@ import pytest
 from iphone_sync.utils.startup import (
     LAUNCH_AGENT_LABEL,
     is_start_at_login,
+    program_arguments,
     set_start_at_login,
 )
 
@@ -175,3 +176,27 @@ def test_is_start_at_login_false_when_runatload_false(tmp_path: Path) -> None:
         )
 
     assert is_start_at_login(home_dir=tmp_path) is False
+
+
+def test_source_program_arguments_use_module_flag() -> None:
+    assert program_arguments() == [sys.executable, "-m", "iphone_sync"]
+
+
+def test_frozen_program_arguments_use_executable_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+
+    assert program_arguments() == [sys.executable]
+
+
+def test_frozen_launch_agent_plist_omits_module_flag(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    runner = _FakeRunner()
+
+    set_start_at_login(True, home_dir=tmp_path, runner=runner)
+
+    with _plist_path(tmp_path).open("rb") as fh:
+        data = plistlib.load(fh)
+
+    assert data["ProgramArguments"] == [sys.executable]

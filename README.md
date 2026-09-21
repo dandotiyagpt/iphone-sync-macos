@@ -148,7 +148,15 @@ flowchart TD
 
 ## 🚀 Quick Start
 
-### 1. Clone & Automated Install
+### Download the Mac app (recommended)
+
+1. Open **[Releases](https://github.com/dandotiyagpt/iphone-sync-macos/releases)** and download `iPhoneSync-macos-*.dmg`.
+2. Open the disk image and drag **iPhone Sync** into **Applications**.
+3. First launch: **right-click the app → Open** (the build is unsigned, so Gatekeeper asks once).
+
+The GitHub Actions Mac runner produces an **Apple Silicon (M1+)** disk image. Intel Macs should use the source install below.
+
+### Install from source
 
 Clone the repository and run the automated installation script:
 
@@ -160,7 +168,7 @@ cd iphone-sync-macos
 
 `install.sh` automatically creates an isolated virtual environment (`.venv`), installs all core and dev dependencies, and sets up executable shortcuts.
 
-### 2. Launching iPhone Sync
+### Launch from source
 
 You can launch the app via the command-line entrypoint:
 
@@ -177,15 +185,14 @@ iphone-gallery-macos
 
 Alternatively, you can double-click **`run-sync.command`** or **`run-gallery.command`** directly in Finder!
 
-### 3. Packaging as a Native macOS `.app`
-
-To build a standalone macOS application bundle (`dist/iPhone Sync.app`):
+### Build a `.dmg` yourself (macOS)
 
 ```bash
+./install.sh
 ./build.sh
 ```
 
-Drag `iPhone Sync.app` into your `/Applications` folder.
+That writes `dist/iPhone Sync.app` and `dist/iPhoneSync-macos-1.0.0.dmg`. Drag the app into `/Applications`, or distribute the DMG. Tag `v1.0.0` (or any `v*`) to have GitHub Actions attach the DMG to a Release.
 
 ---
 

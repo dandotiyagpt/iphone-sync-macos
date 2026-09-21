@@ -47,3 +47,4 @@ def test_pyproject_excludes_windows_only_dependencies() -> None:
 
     assert "pywin32" not in pyproject_text
     assert "pyinstaller" not in pyproject_text
+    assert "py2app" in pyproject_text
