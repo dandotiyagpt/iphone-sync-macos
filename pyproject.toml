@@ -1,6 +1,6 @@
 [project]
 name = "iphone-sync-macos"
-version = "1.0.4"
+version = "1.0.5"
 description = "Automatically copy iPhone photos and videos when plugged in via USB"
 readme = "README.md"
 requires-python = ">=3.11"

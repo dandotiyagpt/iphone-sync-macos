@@ -32,6 +32,7 @@ def test_build_sh_invokes_py2app_then_dmg_script() -> None:
     assert "scripts/package_dmg.sh" in script
     assert "setuptools>=68,<70" in script
     assert "PYTHON_BIN" in script
+    assert "backports/__init__.py" in script or "backports init" in script
     assert "IPHONE_SYNC_VERSION" in script
     assert ".pyproject.toml.freeze" in script
 
@@ -45,7 +46,7 @@ def test_release_workflow_builds_on_macos_and_uploads_dmg() -> None:
     assert "macos-14" in workflow
     assert "dist/*.dmg" in workflow
     assert "softprops/action-gh-release@v2" in workflow
-    assert "pythonLocation" in workflow
+    assert "python-version: \"3.11\"" in workflow or "3.11" in workflow
     assert "bash ./build.sh" in workflow
     assert "chmod +x" in workflow
     assert "pyinstaller" not in workflow.lower()
