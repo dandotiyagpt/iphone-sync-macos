@@ -21,6 +21,8 @@ echo "Installing dependencies..."
 # py2app still uses python setup.py; setuptools 81+ drops install_requires.
 "$PY" -m pip install "setuptools>=68,<70" wheel
 "$PY" -m pip install -e ".[dev]"
+# modulegraph needs a real backports/__init__.py (PEP 420 namespace is not enough).
+"$PY" -c "import backports, pathlib; p=pathlib.Path(next(iter(backports.__path__)))/'__init__.py'; p.parent.mkdir(parents=True, exist_ok=True); p.touch(); print('backports init', p)"
 
 echo "Building app bundle..."
 # py2app + setuptools error if [project] pyproject.toml sits next to setup.py:
