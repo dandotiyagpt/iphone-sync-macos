@@ -30,7 +30,7 @@ def test_build_sh_invokes_py2app_then_dmg_script() -> None:
 
     assert "setup.py py2app" in script
     assert "scripts/package_dmg.sh" in script
-    assert "setuptools>=68,<81" in script
+    assert "setuptools>=68,<70" in script
     assert "PYTHON_BIN" in script
 
 
@@ -43,7 +43,7 @@ def test_release_workflow_builds_on_macos_and_uploads_dmg() -> None:
     assert "macos-14" in workflow
     assert "dist/*.dmg" in workflow
     assert "softprops/action-gh-release@v2" in workflow
-    assert "PYTHON_BIN" in workflow
+    assert "pythonLocation" in workflow
     assert "bash ./build.sh" in workflow
     assert "chmod +x" in workflow
     assert "pyinstaller" not in workflow.lower()
@@ -57,4 +57,5 @@ def test_setup_py_reads_version_from_pyproject() -> None:
     assert "pyproject.toml" in setup_text
     assert "version = \"" in pyproject
     assert "py2app" in setup_text
+    assert "setup_requires" not in setup_text
     assert "pyinstaller" not in setup_text.lower()
