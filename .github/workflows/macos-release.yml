@@ -31,8 +31,10 @@ jobs:
 
       - name: Build app and DMG
         env:
-          PYTHON_BIN: python
+          PYTHON_BIN: ${{ env.pythonLocation }}/bin/python
         run: |
+          echo "PYTHON_BIN=$PYTHON_BIN"
+          "$PYTHON_BIN" -c "import sys; print(sys.executable, sys.version)"
           chmod +x build.sh scripts/package_dmg.sh install.sh
           bash ./build.sh
 

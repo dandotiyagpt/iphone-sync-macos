@@ -19,7 +19,7 @@ echo "Using interpreter: $PY ($("$PY" -c 'import sys; print(sys.executable)'))"
 echo "Installing dependencies..."
 "$PY" -m pip install -U pip
 # py2app still uses python setup.py; setuptools 81+ drops install_requires.
-"$PY" -m pip install "setuptools>=68,<81" wheel
+"$PY" -m pip install "setuptools>=68,<70" wheel
 "$PY" -m pip install -e ".[dev]"
 
 echo "Building app bundle..."
