@@ -23,7 +23,21 @@ echo "Installing dependencies..."
 "$PY" -m pip install -e ".[dev]"
 
 echo "Building app bundle..."
+# py2app + setuptools error if [project] pyproject.toml sits next to setup.py:
+# "install_requires is no longer supported". Hide it for the freeze only.
+export IPHONE_SYNC_VERSION="$(
+  "$PY" -c "import tomllib, pathlib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text(encoding='utf-8'))['project']['version'])"
+)"
+mv pyproject.toml .pyproject.toml.freeze
+restore_pyproject() {
+  if [[ -f .pyproject.toml.freeze ]]; then
+    mv .pyproject.toml.freeze pyproject.toml
+  fi
+}
+trap restore_pyproject EXIT
 "$PY" setup.py py2app
+restore_pyproject
+trap - EXIT
 
 echo "Building disk image..."
 "$ROOT/scripts/package_dmg.sh"
