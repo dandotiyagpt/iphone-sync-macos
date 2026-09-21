@@ -27,7 +27,14 @@ def _plist_path(home_dir: Path | None) -> Path:
     return base / "Library" / "LaunchAgents" / f"{LAUNCH_AGENT_LABEL}.plist"
 
 
-def _program_arguments() -> list[str]:
+def program_arguments() -> list[str]:
+    """Launch argv for the LaunchAgent.
+
+    Frozen py2app bundles already point ``sys.executable`` at the app binary.
+    Source installs still need ``python -m iphone_sync``.
+    """
+    if getattr(sys, "frozen", False):
+        return [sys.executable]
     return [sys.executable, "-m", "iphone_sync"]
 
 
@@ -56,7 +63,7 @@ def set_start_at_login(
                 {
                     "Label": LAUNCH_AGENT_LABEL,
                     "RunAtLoad": True,
-                    "ProgramArguments": _program_arguments(),
+                    "ProgramArguments": program_arguments(),
                 },
                 fh,
             )
