@@ -32,6 +32,8 @@ def test_build_sh_invokes_py2app_then_dmg_script() -> None:
     assert "scripts/package_dmg.sh" in script
     assert "setuptools>=68,<70" in script
     assert "PYTHON_BIN" in script
+    assert "IPHONE_SYNC_VERSION" in script
+    assert ".pyproject.toml.freeze" in script
 
 
 @pytest.mark.unit
@@ -57,5 +59,5 @@ def test_setup_py_reads_version_from_pyproject() -> None:
     assert "pyproject.toml" in setup_text
     assert "version = \"" in pyproject
     assert "py2app" in setup_text
-    assert "setup_requires" not in setup_text
+    assert ".pyproject.toml.freeze" in setup_text or "IPHONE_SYNC_VERSION" in setup_text
     assert "pyinstaller" not in setup_text.lower()

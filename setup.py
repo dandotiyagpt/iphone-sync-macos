@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import tomllib
 from pathlib import Path
 
@@ -11,7 +12,13 @@ ROOT = Path(__file__).resolve().parent
 
 
 def _project_version() -> str:
-    data = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    env_version = os.environ.get("IPHONE_SYNC_VERSION", "").strip()
+    if env_version:
+        return env_version
+    pyproject = ROOT / "pyproject.toml"
+    if not pyproject.is_file():
+        pyproject = ROOT / ".pyproject.toml.freeze"
+    data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
     return str(data["project"]["version"])
 
 
