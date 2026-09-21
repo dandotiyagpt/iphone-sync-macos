@@ -13,8 +13,9 @@ if [[ ! -d "$APP" ]]; then
   exit 1
 fi
 
+PY="${PYTHON_BIN:-python3}"
 VERSION="$(
-  python3 -c "import tomllib, pathlib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text(encoding='utf-8'))['project']['version'])"
+  "$PY" -c "import tomllib, pathlib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text(encoding='utf-8'))['project']['version'])"
 )"
 DMG_NAME="iPhoneSync-macos-${VERSION}.dmg"
 OUT="$ROOT/dist/${DMG_NAME}"

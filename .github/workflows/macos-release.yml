@@ -30,6 +30,8 @@ jobs:
           pytest -q
 
       - name: Build app and DMG
+        env:
+          PYTHON_BIN: python
         run: |
           chmod +x build.sh scripts/package_dmg.sh install.sh
           bash ./build.sh

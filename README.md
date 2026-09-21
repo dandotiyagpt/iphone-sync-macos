@@ -192,7 +192,7 @@ Alternatively, you can double-click **`run-sync.command`** or **`run-gallery.com
 ./build.sh
 ```
 
-That writes `dist/iPhone Sync.app` and `dist/iPhoneSync-macos-1.0.0.dmg`. Drag the app into `/Applications`, or distribute the DMG. Tag `v1.0.0` (or any `v*`) to have GitHub Actions attach the DMG to a Release.
+That writes `dist/iPhone Sync.app` and `dist/iPhoneSync-macos-<version>.dmg`. Drag the app into `/Applications`, or distribute the DMG. Tag `v1.0.2` (or any `v*`) to have GitHub Actions attach the DMG to a Release.
 
 ---
 
