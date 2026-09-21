@@ -30,7 +30,9 @@ jobs:
           pytest -q
 
       - name: Build app and DMG
-        run: ./build.sh
+        run: |
+          chmod +x build.sh scripts/package_dmg.sh install.sh
+          bash ./build.sh
 
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4

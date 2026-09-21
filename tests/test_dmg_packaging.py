@@ -40,6 +40,8 @@ def test_release_workflow_builds_on_macos_and_uploads_dmg() -> None:
     assert "macos-14" in workflow
     assert "dist/*.dmg" in workflow
     assert "softprops/action-gh-release@v2" in workflow
+    assert "bash ./build.sh" in workflow
+    assert "chmod +x" in workflow
     assert "pyinstaller" not in workflow.lower()
 
 
