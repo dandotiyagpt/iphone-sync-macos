@@ -1,0 +1,9 @@
+---
+description: Project instructions (shared with Claude Code / Gemini CLI)
+alwaysApply: true
+---
+
+Full project instructions live in `AGENTS.md` at the repo root (also symlinked
+as `CLAUDE.md`/`GEMINI.md` so every AI tool reads the same content). Read it
+before making changes, along with `.ai/STATUS.md` for in-flight work and
+handoff notes from other sessions/tools.

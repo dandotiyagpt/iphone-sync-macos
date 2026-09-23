@@ -7,7 +7,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageOps
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
 
@@ -19,17 +19,22 @@ THUMB_SIZE = 200
 
 
 def _crop_center_square(img: Image.Image, size: int) -> Image.Image:
+    img = ImageOps.exif_transpose(img)
     width, height = img.size
     side = min(width, height)
     left = (width - side) // 2
     top = (height - side) // 2
     cropped = img.crop((left, top, left + side, top + side))
-    return cropped.resize((size, size), Image.Resampling.LANCZOS)
+    return cropped.resize((size, size), Image.Resampling.BILINEAR)
 
 
 def _pil_to_jpeg(img: Image.Image) -> bytes:
     if img.mode not in ("RGB", "RGBA"):
         img = img.convert("RGB")
+    elif img.mode == "RGBA":
+        background = Image.new("RGB", img.size, (0, 0, 0))
+        background.paste(img, mask=img.split()[3])
+        img = background
     buffer = io.BytesIO()
     img.save(buffer, format="JPEG", quality=85)
     return buffer.getvalue()
@@ -50,21 +55,14 @@ def _save_pixmap_cache(source: Path, pixmap: QPixmap) -> None:
     save_cached_thumbnail(source, bytes(buffer.data()))
 
 
-def _cache_and_return(source: Path, jpeg: bytes) -> QPixmap:
-    save_cached_thumbnail(source, jpeg)
-    return _jpeg_to_pixmap(jpeg)
-
-
-def create_image_thumbnail(source: Path, size: int = THUMB_SIZE) -> QPixmap:
-    """Create thumbnail from a local image file on the main thread."""
+def create_image_thumbnail_bytes(source: Path, size: int = THUMB_SIZE) -> bytes | None:
+    """Create raw JPEG thumbnail bytes from an image file (thread-safe, no Qt GUI objects)."""
     if not source.exists():
-        return QPixmap()
+        return None
 
     cached = load_cached_thumbnail(source)
     if cached:
-        pixmap = _jpeg_to_pixmap(cached)
-        if not pixmap.isNull():
-            return pixmap
+        return cached
 
     register_heif_opener()
     ext = source.suffix.lower().lstrip(".")
@@ -72,9 +70,25 @@ def create_image_thumbnail(source: Path, size: int = THUMB_SIZE) -> QPixmap:
         try:
             with Image.open(source) as img:
                 square = _crop_center_square(img, size)
-                return _cache_and_return(source, _pil_to_jpeg(square))
+                jpeg = _pil_to_jpeg(square)
+                save_cached_thumbnail(source, jpeg)
+                return jpeg
         except Exception:
             pass
+
+    return None
+
+
+def create_image_thumbnail(source: Path, size: int = THUMB_SIZE) -> QPixmap:
+    """Create thumbnail from a local image file on the main thread."""
+    if not source.exists():
+        return QPixmap()
+
+    jpeg = create_image_thumbnail_bytes(source, size)
+    if jpeg:
+        pixmap = _jpeg_to_pixmap(jpeg)
+        if not pixmap.isNull():
+            return pixmap
 
     pixmap = QPixmap(str(source))
     if not pixmap.isNull():
@@ -90,7 +104,7 @@ def create_image_thumbnail(source: Path, size: int = THUMB_SIZE) -> QPixmap:
     return QPixmap()
 
 
-def _video_thumbnail_pyav(source: Path, size: int) -> QPixmap | None:
+def _video_thumbnail_pyav_bytes(source: Path, size: int) -> bytes | None:
     try:
         import av
     except ImportError:
@@ -103,13 +117,15 @@ def _video_thumbnail_pyav(source: Path, size: int) -> QPixmap | None:
             for frame in container.decode(stream):
                 img = frame.to_image()
                 square = _crop_center_square(img, size)
-                return _cache_and_return(source, _pil_to_jpeg(square))
+                jpeg = _pil_to_jpeg(square)
+                save_cached_thumbnail(source, jpeg)
+                return jpeg
     except Exception:
         return None
     return None
 
 
-def _video_thumbnail_ffmpeg(source: Path, size: int) -> QPixmap | None:
+def _video_thumbnail_ffmpeg_bytes(source: Path, size: int) -> bytes | None:
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
         return None
@@ -135,19 +151,34 @@ def _video_thumbnail_ffmpeg(source: Path, size: int) -> QPixmap | None:
             check=False,
         )
         if result.returncode == 0 and result.stdout:
-            pixmap = QPixmap()
-            if pixmap.loadFromData(result.stdout, "JPEG") and not pixmap.isNull():
-                scaled = pixmap.scaled(
-                    size,
-                    size,
-                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
-                _save_pixmap_cache(source, scaled)
-                return scaled
+            try:
+                with Image.open(io.BytesIO(result.stdout)) as img:
+                    square = _crop_center_square(img, size)
+                    jpeg = _pil_to_jpeg(square)
+                    save_cached_thumbnail(source, jpeg)
+                    return jpeg
+            except Exception:
+                save_cached_thumbnail(source, result.stdout)
+                return result.stdout
     except Exception:
         pass
     return None
+
+
+def create_video_thumbnail_bytes(source: Path, size: int = THUMB_SIZE) -> bytes | None:
+    """Create raw JPEG thumbnail bytes from a video file (thread-safe, no Qt GUI objects)."""
+    if not source.exists():
+        return None
+
+    cached = load_cached_thumbnail(source)
+    if cached:
+        return cached
+
+    pyav_bytes = _video_thumbnail_pyav_bytes(source, size)
+    if pyav_bytes:
+        return pyav_bytes
+
+    return _video_thumbnail_ffmpeg_bytes(source, size)
 
 
 def create_video_thumbnail(source: Path, size: int = THUMB_SIZE) -> QPixmap:
@@ -155,19 +186,11 @@ def create_video_thumbnail(source: Path, size: int = THUMB_SIZE) -> QPixmap:
     if not source.exists():
         return QPixmap()
 
-    cached = load_cached_thumbnail(source)
-    if cached:
-        pixmap = _jpeg_to_pixmap(cached)
+    jpeg = create_video_thumbnail_bytes(source, size)
+    if jpeg:
+        pixmap = _jpeg_to_pixmap(jpeg)
         if not pixmap.isNull():
             return pixmap
-
-    pixmap = _video_thumbnail_pyav(source, size)
-    if pixmap and not pixmap.isNull():
-        return pixmap
-
-    pixmap = _video_thumbnail_ffmpeg(source, size)
-    if pixmap and not pixmap.isNull():
-        return pixmap
 
     return QPixmap()
 

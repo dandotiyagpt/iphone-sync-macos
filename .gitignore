@@ -7,6 +7,9 @@ dist/
 build/
 *.spec
 
+# Built menu-bar bundle (local output, not source)
+iPhone Sync.app/
+
 # App data (local dev)
 .pytest_cache/
 .coverage

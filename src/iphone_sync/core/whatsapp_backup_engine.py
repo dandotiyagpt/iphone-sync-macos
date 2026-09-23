@@ -1,4 +1,11 @@
-"""Full encrypted MobileBackup2 backup / restore (Finder/iTunes-style)."""
+"""WhatsApp backup / restore over MobileBackup2.
+
+WhatsApp chat history only leaves an iPhone inside an encrypted
+MobileBackup2 snapshot — Apple exposes no per-app export over USB. This
+engine therefore drives MobileBackup2, but the snapshot is stored in its own
+WhatsApp backup folder and every result is judged purely on whether WhatsApp
+data made it in. No other app is inspected or reported on.
+"""
 
 from __future__ import annotations
 
@@ -14,7 +21,7 @@ from iphone_sync.utils.usbmux_helpers import create_lockdown
 
 
 @dataclass
-class DeviceBackupResult:
+class WhatsAppBackupResult:
     udid: str = ""
     device_name: str = ""
     success: bool = False
@@ -25,13 +32,13 @@ class DeviceBackupResult:
     errors: list[str] = field(default_factory=list)
 
 
-class DeviceBackupWorker(QThread):
+class WhatsAppBackupWorker(QThread):
     progress = Signal(float)  # 0-100
     log_message = Signal(str)
     error = Signal(str)
-    finished_backup = Signal(object)  # DeviceBackupResult
+    finished_backup = Signal(object)  # WhatsAppBackupResult
     needs_encryption = Signal()  # encryption off — UI must set password then retry
-    finished_restore = Signal(object)  # DeviceBackupResult
+    finished_restore = Signal(object)  # WhatsAppBackupResult
 
     def __init__(
         self,
@@ -78,10 +85,10 @@ class DeviceBackupWorker(QThread):
                 result = loop.run_until_complete(self._run_enable_encryption())
                 self.finished_backup.emit(result)
             else:
-                result = DeviceBackupResult(error=f"Unknown mode: {self._mode}")
+                result = WhatsAppBackupResult(error=f"Unknown mode: {self._mode}")
                 self.finished_backup.emit(result)
         except Exception as exc:
-            result = DeviceBackupResult(error=str(exc), errors=[str(exc)])
+            result = WhatsAppBackupResult(error=str(exc), errors=[str(exc)])
             self.error.emit(str(exc))
             if self._mode == "restore":
                 self.finished_restore.emit(result)
@@ -96,11 +103,14 @@ class DeviceBackupWorker(QThread):
         except Exception:
             pass
 
-    async def _run_enable_encryption(self) -> DeviceBackupResult:
+    def _backup_root(self) -> Path:
+        return Path(self._settings.whatsapp_backup_folder)
+
+    async def _run_enable_encryption(self) -> WhatsAppBackupResult:
         from pymobiledevice3.services.mobilebackup2 import Mobilebackup2Service
 
-        result = DeviceBackupResult()
-        backup_root = Path(self._settings.device_backup_folder)
+        result = WhatsAppBackupResult()
+        backup_root = self._backup_root()
         backup_root.mkdir(parents=True, exist_ok=True)
 
         lockdown = await create_lockdown(self._udid)
@@ -126,24 +136,24 @@ class DeviceBackupWorker(QThread):
                 result.error = "Failed to enable backup encryption"
         return result
 
-    async def _run_backup(self) -> DeviceBackupResult:
+    async def _run_backup(self) -> WhatsAppBackupResult:
         from pymobiledevice3.services.mobilebackup2 import Mobilebackup2Service
 
-        result = DeviceBackupResult()
-        backup_root = Path(self._settings.device_backup_folder)
+        result = WhatsAppBackupResult()
+        backup_root = self._backup_root()
         backup_root.mkdir(parents=True, exist_ok=True)
 
         lockdown = await create_lockdown(self._udid)
         result.udid = lockdown.udid
         result.device_name = lockdown.all_values.get("DeviceName", "iPhone")
-        self.log_message.emit(f"Starting device backup for {result.device_name}…")
+        self.log_message.emit(f"Starting WhatsApp backup for {result.device_name}…")
 
         async with Mobilebackup2Service(lockdown) as client:
             will_encrypt = await client.get_will_encrypt()
             result.encryption_enabled = will_encrypt
             if not will_encrypt:
                 self.log_message.emit(
-                    "Backup encryption is OFF — WhatsApp and most app data will be incomplete."
+                    "Backup encryption is OFF — WhatsApp chat history cannot be captured."
                 )
                 self.needs_encryption.emit()
                 result.error = "encryption_required"
@@ -151,9 +161,9 @@ class DeviceBackupWorker(QThread):
                 return result
 
             self.log_message.emit(
-                "Encrypted backup ON — starting "
+                "Encrypted backup ON — capturing WhatsApp data ("
                 + ("full" if self._full else "incremental")
-                + " backup…"
+                + " snapshot)…"
             )
             self.log_message.emit("Unlock your iPhone if prompted for the passcode.")
 
@@ -173,7 +183,7 @@ class DeviceBackupWorker(QThread):
 
         self.log_message.emit(info.whatsapp_status_label)
         if not info.is_encrypted:
-            result.error = "Backup is not encrypted — WhatsApp not safe to restore"
+            result.error = "Backup is not encrypted — WhatsApp chats were not captured"
             result.success = False
             result.errors.append(result.error)
             return result
@@ -192,16 +202,16 @@ class DeviceBackupWorker(QThread):
 
         result.success = True
         self.log_message.emit(
-            f"Device backup complete ({info.device_name}). "
+            f"WhatsApp backup complete ({info.device_name}). "
             f"{info.whatsapp_status_label}."
         )
         return result
 
-    async def _run_restore(self) -> DeviceBackupResult:
+    async def _run_restore(self) -> WhatsAppBackupResult:
         from pymobiledevice3.services.mobilebackup2 import Mobilebackup2Service
 
-        result = DeviceBackupResult()
-        backup_root = Path(self._settings.device_backup_folder)
+        result = WhatsAppBackupResult()
+        backup_root = self._backup_root()
         source = self._source_udid
 
         lockdown = await create_lockdown(self._udid)
@@ -223,7 +233,7 @@ class DeviceBackupWorker(QThread):
             return result
 
         self.log_message.emit(
-            f"Restoring backup from {info.device_name} ({source[:8]}…) "
+            f"Restoring WhatsApp backup from {info.device_name} ({source[:8]}…) "
             f"onto {result.device_name}…"
         )
         self.log_message.emit("Keep the iPhone unlocked and connected. Do not unplug.")
@@ -250,12 +260,12 @@ class DeviceBackupWorker(QThread):
         return result
 
 
-class DeviceBackupEngine:
-    """Manages device backup / restore worker lifecycle."""
+class WhatsAppBackupEngine:
+    """Manages WhatsApp backup / restore worker lifecycle."""
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
-        self._worker: DeviceBackupWorker | None = None
+        self._worker: WhatsAppBackupWorker | None = None
 
     @property
     def is_running(self) -> bool:
@@ -266,10 +276,10 @@ class DeviceBackupEngine:
         udid: str | None = None,
         *,
         full: bool = False,
-    ) -> DeviceBackupWorker:
+    ) -> WhatsAppBackupWorker:
         if self.is_running:
-            raise RuntimeError("Device backup already in progress")
-        self._worker = DeviceBackupWorker(
+            raise RuntimeError("WhatsApp backup already in progress")
+        self._worker = WhatsAppBackupWorker(
             self._settings, udid, mode="backup", full=full
         )
         self._worker.start()
@@ -277,10 +287,10 @@ class DeviceBackupEngine:
 
     def start_enable_encryption(
         self, udid: str | None, password: str
-    ) -> DeviceBackupWorker:
+    ) -> WhatsAppBackupWorker:
         if self.is_running:
-            raise RuntimeError("Device backup already in progress")
-        self._worker = DeviceBackupWorker(
+            raise RuntimeError("WhatsApp backup already in progress")
+        self._worker = WhatsAppBackupWorker(
             self._settings,
             udid,
             mode="enable_encryption",
@@ -295,10 +305,10 @@ class DeviceBackupEngine:
         *,
         source_udid: str,
         password: str = "",
-    ) -> DeviceBackupWorker:
+    ) -> WhatsAppBackupWorker:
         if self.is_running:
-            raise RuntimeError("Device backup already in progress")
-        self._worker = DeviceBackupWorker(
+            raise RuntimeError("WhatsApp backup already in progress")
+        self._worker = WhatsAppBackupWorker(
             self._settings,
             udid,
             mode="restore",

@@ -5,9 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox
+from PySide6.QtWidgets import QFileDialog, QMainWindow
 
 from iphone_sync.config import Settings
+from iphone_sync.ui.gallery.device_discovery import DeviceSource
 from iphone_sync.ui.gallery.gallery_widget import GalleryWidget
 
 
@@ -16,11 +17,19 @@ class GalleryWindow(QMainWindow):
         super().__init__()
         self._settings = settings
         self.setWindowTitle("iPhone Photos")
-        self.setMinimumSize(1100, 650)
-        self.resize(1280, 800)
+        self.setMinimumSize(1100, 680)
+        self.resize(1320, 840)
 
-        self._gallery = GalleryWidget(Path(self._settings.destination_folder))
+        backup_root = None
+        if self._settings.whatsapp_backup_folder:
+            backup_root = Path(self._settings.whatsapp_backup_folder)
+
+        self._gallery = GalleryWidget(
+            Path(self._settings.destination_folder),
+            backup_root=backup_root,
+        )
         self._gallery.source_changed.connect(self._on_source_changed)
+        self._gallery.device_changed.connect(self._on_device_changed)
         self.setCentralWidget(self._gallery)
 
         self._build_menu()
@@ -45,6 +54,10 @@ class GalleryWindow(QMainWindow):
 
     def _on_source_changed(self, path: str) -> None:
         self.statusBar().showMessage(f"Library: {path}")
+
+    def _on_device_changed(self, device: DeviceSource) -> None:
+        self.setWindowTitle(f"iPhone Photos — {device.name}")
+        self.statusBar().showMessage(f"Source: {device.display_label} · {device.path}")
 
     def _change_folder(self) -> None:
         path = QFileDialog.getExistingDirectory(

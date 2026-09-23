@@ -32,25 +32,36 @@ def _default_destination() -> str:
     return str(_home_dir() / "Pictures" / "iPhone Sync")
 
 
-def _default_device_backup_folder() -> str:
-    return str(_home_dir() / "Documents" / "iPhone Device Backups")
+def _default_whatsapp_backup_folder() -> str:
+    return str(_home_dir() / "Documents" / "iPhone WhatsApp Backup")
 
 
 def _default_files_backup_folder() -> str:
     return str(_home_dir() / "Documents" / "iPhone Files Backup")
 
 
+# Settings keys renamed when the full-device/app backup became a WhatsApp-only
+# entity. Old settings.json files are migrated on load so upgrades keep their
+# configured folder and automation preference.
+_LEGACY_KEY_MAP = {
+    "device_backup_folder": "whatsapp_backup_folder",
+    "auto_device_backup_on_plugin": "auto_whatsapp_backup_on_plugin",
+}
+
+
 @dataclass
 class Settings:
     destination_folder: str = field(default_factory=_default_destination)
-    device_backup_folder: str = field(default_factory=_default_device_backup_folder)
+    whatsapp_backup_folder: str = field(default_factory=_default_whatsapp_backup_folder)
     files_backup_folder: str = field(default_factory=_default_files_backup_folder)
     auto_sync_on_plugin: bool = True
-    auto_device_backup_on_plugin: bool = True
+    auto_whatsapp_backup_on_plugin: bool = True
     auto_files_backup_on_plugin: bool = True
     start_at_login: bool = True
-    minimize_to_tray: bool = True
+    run_in_background: bool = True
+    menu_bar_only: bool = True
     organize_by_date: bool = True
+    theme: str = "obsidian_dark"
 
     @classmethod
     def load(cls) -> Settings:
@@ -59,9 +70,22 @@ class Settings:
             return cls()
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
-            return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
+            if not isinstance(data, dict):
+                return cls()
+            migrated = cls._migrate_legacy_keys(data)
+            return cls(**{k: v for k, v in migrated.items() if k in cls.__dataclass_fields__})
         except (json.JSONDecodeError, TypeError):
             return cls()
+
+    @staticmethod
+    def _migrate_legacy_keys(data: dict) -> dict:
+        """Rename pre-WhatsApp-split keys, without clobbering current ones."""
+        migrated = dict(data)
+        for old_key, new_key in _LEGACY_KEY_MAP.items():
+            if old_key in migrated and new_key not in migrated:
+                migrated[new_key] = migrated[old_key]
+            migrated.pop(old_key, None)
+        return migrated
 
     def save(self) -> None:
         path = _app_data_dir() / "settings.json"

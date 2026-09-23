@@ -15,7 +15,8 @@ OPTIONS = {
         "CFBundleDisplayName": "iPhone Sync",
         "CFBundleIdentifier": "com.iphonesync.app",
         "CFBundleShortVersionString": "1.0.0",
-        "LSUIElement": False,
+        # Menu bar agent: no Dock icon, keeps running with no window open.
+        "LSUIElement": True,
     },
 }
 

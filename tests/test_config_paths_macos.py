@@ -72,13 +72,14 @@ def test_save_load_round_trip_preserves_all_fields(tmp_path: Path) -> None:
 
     original = Settings(
         destination_folder="/tmp/dest",
-        device_backup_folder="/tmp/device-backup",
+        whatsapp_backup_folder="/tmp/whatsapp-backup",
         files_backup_folder="/tmp/files-backup",
         auto_sync_on_plugin=False,
-        auto_device_backup_on_plugin=False,
+        auto_whatsapp_backup_on_plugin=False,
         auto_files_backup_on_plugin=False,
         start_at_login=False,
-        minimize_to_tray=False,
+        run_in_background=False,
+        menu_bar_only=False,
         organize_by_date=False,
     )
     original.save()
@@ -118,6 +119,66 @@ def test_corrupt_json_falls_back_to_defaults(tmp_path: Path) -> None:
     assert loaded == Settings()
 
 
+def test_background_defaults_keep_agent_in_menu_bar(tmp_path: Path) -> None:
+    _use_tmp_home(tmp_path)
+
+    settings = Settings()
+
+    assert settings.run_in_background is True
+    assert settings.menu_bar_only is True
+
+
+def test_whatsapp_backup_folder_defaults_to_its_own_directory(tmp_path: Path) -> None:
+    home = _use_tmp_home(tmp_path)
+
+    settings = Settings()
+
+    assert Path(settings.whatsapp_backup_folder) == (
+        home / "Documents" / "iPhone WhatsApp Backup"
+    )
+    assert settings.whatsapp_backup_folder != settings.files_backup_folder
+
+
+def test_legacy_device_backup_keys_migrate_to_whatsapp(tmp_path: Path) -> None:
+    _use_tmp_home(tmp_path)
+
+    settings_path = Settings.app_data_dir() / "settings.json"
+    settings_path.write_text(
+        json.dumps(
+            {
+                "device_backup_folder": "/tmp/old-device-backup",
+                "auto_device_backup_on_plugin": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = Settings.load()
+
+    assert loaded.whatsapp_backup_folder == "/tmp/old-device-backup"
+    assert loaded.auto_whatsapp_backup_on_plugin is False
+    assert not hasattr(loaded, "device_backup_folder")
+
+
+def test_new_whatsapp_keys_win_over_legacy_keys(tmp_path: Path) -> None:
+    _use_tmp_home(tmp_path)
+
+    settings_path = Settings.app_data_dir() / "settings.json"
+    settings_path.write_text(
+        json.dumps(
+            {
+                "device_backup_folder": "/tmp/old",
+                "whatsapp_backup_folder": "/tmp/new",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = Settings.load()
+
+    assert loaded.whatsapp_backup_folder == "/tmp/new"
+
+
 def test_unknown_json_keys_are_silently_ignored_on_load(tmp_path: Path) -> None:
     _use_tmp_home(tmp_path)
 
@@ -133,3 +194,17 @@ def test_unknown_json_keys_are_silently_ignored_on_load(tmp_path: Path) -> None:
 
     assert loaded.destination_folder == "/tmp/dest"
     assert not hasattr(loaded, "totally_unknown_field")
+
+
+def test_theme_setting_persists_and_defaults(tmp_path: Path) -> None:
+    _use_tmp_home(tmp_path)
+
+    settings = Settings()
+    assert settings.theme == "obsidian_dark"
+
+    settings.theme = "midnight_navy"
+    settings.save()
+
+    reloaded = Settings.load()
+    assert reloaded.theme == "midnight_navy"
+

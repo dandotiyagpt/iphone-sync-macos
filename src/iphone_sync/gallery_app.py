@@ -16,6 +16,10 @@ def main() -> None:
     app.setOrganizationName("iPhoneSync")
 
     settings = Settings.load()
+
+    from iphone_sync.ui.theme import get_theme_stylesheet
+    app.setStyleSheet(get_theme_stylesheet(settings.theme))
+
     window = GalleryWindow(settings)
     window.show()
 

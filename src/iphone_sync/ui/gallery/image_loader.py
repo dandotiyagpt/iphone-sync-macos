@@ -36,13 +36,13 @@ def load_image_pixmap(path: Path, max_size: int | None = None) -> QPixmap:
         try:
             with Image.open(path) as img:
                 if max_size:
-                    img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+                    img.thumbnail((max_size, max_size), Image.Resampling.BILINEAR)
                 if img.mode not in ("RGB", "RGBA"):
                     img = img.convert("RGB")
                 buffer = io.BytesIO()
-                img.save(buffer, format="PNG")
+                img.save(buffer, format="JPEG", quality=90)
                 pixmap = QPixmap()
-                if pixmap.loadFromData(buffer.getvalue(), "PNG"):
+                if pixmap.loadFromData(buffer.getvalue(), "JPEG"):
                     return pixmap
         except Exception:
             pass

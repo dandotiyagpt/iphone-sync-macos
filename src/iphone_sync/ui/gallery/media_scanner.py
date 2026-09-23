@@ -38,16 +38,43 @@ class MediaItem:
         return self.path.suffix.lower().lstrip(".")
 
 
+MONTH_MAP = {
+    "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
+    "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12,
+}
+
+
 def _media_datetime(path: Path) -> datetime:
+    # 1. Fast path: check if path is organized like .../<year>/<month_name>/<filename>
+    parent = path.parent
+    month_num = MONTH_MAP.get(parent.name.lower())
+    if month_num and parent.parent.name.isdigit() and len(parent.parent.name) == 4:
+        try:
+            mtime = path.stat().st_mtime
+            file_dt = datetime.fromtimestamp(mtime)
+            year = int(parent.parent.name)
+            if file_dt.year == year and file_dt.month == month_num:
+                return file_dt
+            day = min(file_dt.day, 28)
+            return datetime(year, month_num, day, file_dt.hour, file_dt.minute, file_dt.second)
+        except OSError:
+            pass
+
+    # 2. EXIF reading: open file with limit to 64KB for speed
     ext = path.suffix.lower().lstrip(".")
     if ext in IMAGE_EXTENSIONS:
         try:
-            taken = exif_datetime(path.read_bytes()[:512_000])
+            with open(path, "rb") as f:
+                head = f.read(65536)
+            taken = exif_datetime(head)
             if taken:
                 return taken
-        except OSError:
+        except Exception:
             pass
-    return datetime.fromtimestamp(path.stat().st_mtime)
+    try:
+        return datetime.fromtimestamp(path.stat().st_mtime)
+    except OSError:
+        return datetime.now()
 
 
 def _find_live_video(image_path: Path) -> Path | None:

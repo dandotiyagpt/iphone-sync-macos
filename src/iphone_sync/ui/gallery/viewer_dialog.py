@@ -36,6 +36,7 @@ class MediaViewerDialog(QDialog):
         self._items = items
         self._index = start_index
         self._seeking = False
+        self._current_pixmap: QPixmap | None = None
         self._live_timer = QTimer(self)
         self._live_timer.setSingleShot(True)
         self._live_timer.timeout.connect(self._play_live_photo)
@@ -207,6 +208,7 @@ class MediaViewerDialog(QDialog):
 
     def _show_photo(self, path) -> None:
         pixmap = load_image_pixmap(path, max_size=2400)
+        self._current_pixmap = pixmap
         if pixmap.isNull():
             self._photo_label.setText(f"Unable to preview\n{path}")
             return
@@ -227,6 +229,7 @@ class MediaViewerDialog(QDialog):
         item = self._current_item()
         if not item.is_live_photo or not item.live_video_path:
             return
+        self._current_pixmap = None
         self._stack.setCurrentIndex(1)
         self._set_timeline_visible(True)
         self._play_btn.setVisible(True)
@@ -284,8 +287,8 @@ class MediaViewerDialog(QDialog):
         super().resizeEvent(event)
         item = self._current_item() if self._items else None
         if item and item.kind != MediaKind.VIDEO and self._stack.currentIndex() == 0:
-            pixmap = load_image_pixmap(item.path, max_size=2400)
-            self._scale_photo(pixmap)
+            if self._current_pixmap and not self._current_pixmap.isNull():
+                self._scale_photo(self._current_pixmap)
 
     def mouseReleaseEvent(self, event) -> None:
         if self._current_item().is_live_photo and self._stack.currentIndex() == 1:

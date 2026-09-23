@@ -19,3 +19,16 @@ if str(_SRC_DIR) not in sys.path:
 # Force headless Qt so any test that transitively imports PySide6 widgets
 # runs safely without a display (must be set before any Qt import happens).
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+import pytest
+
+
+@pytest.fixture(scope="session", autouse=True)
+def qapp():
+    """Ensure headless QApplication exists for all tests involving Qt objects."""
+    from PySide6.QtWidgets import QApplication
+
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication([])
+    return app

@@ -47,7 +47,31 @@ def test_enable_creates_plist_with_correct_contents(tmp_path: Path) -> None:
 
     assert data["Label"] == LAUNCH_AGENT_LABEL
     assert data["RunAtLoad"] is True
-    assert data["ProgramArguments"] == [sys.executable, "-m", "iphone_sync"]
+    assert data["ProgramArguments"] == [
+        sys.executable,
+        "-m",
+        "iphone_sync",
+        "--background",
+    ]
+
+
+def test_enable_keeps_agent_alive_after_crash_only(tmp_path: Path) -> None:
+    runner = _FakeRunner()
+
+    set_start_at_login(True, home_dir=tmp_path, runner=runner)
+
+    with _plist_path(tmp_path).open("rb") as fh:
+        data = plistlib.load(fh)
+
+    # Relaunch after a crash, but respect an explicit Quit from the menu bar.
+    assert data["KeepAlive"] == {"SuccessfulExit": False}
+    # Background has no menu bar. Interactive runs in the Aqua login session.
+    assert data["ProcessType"] == "Interactive"
+    assert data["LimitLoadToSessionType"] == "Aqua"
+    assert data["EnvironmentVariables"]["IPHONE_SYNC_LAUNCHD"] == "1"
+    assert "/opt/homebrew/bin" in data["EnvironmentVariables"]["PATH"]
+    assert data["WorkingDirectory"].endswith("iphone-sync-macos")
+    assert data["StandardErrorPath"].endswith("launchd.err.log")
 
 
 def test_is_start_at_login_false_before_and_true_after(tmp_path: Path) -> None:
@@ -138,12 +162,23 @@ def test_runner_invoked_with_launchctl_bootstrap_argv(tmp_path: Path) -> None:
 
     set_start_at_login(True, home_dir=tmp_path, runner=runner)
 
-    assert len(runner.calls) == 1
-    argv = runner.calls[0]
-    assert argv[0] == "launchctl"
-    assert argv[1] == "bootstrap"
-    assert argv[2].startswith("gui/")
-    assert argv[3] == str(_plist_path(tmp_path))
+    commands = [call[1] for call in runner.calls]
+    assert commands == ["enable", "bootout", "bootstrap"]
+    bootstrap = runner.calls[-1]
+    assert bootstrap[0] == "launchctl"
+    assert bootstrap[1] == "bootstrap"
+    assert bootstrap[2].startswith("gui/")
+    assert bootstrap[3] == str(_plist_path(tmp_path))
+
+
+def test_launchd_job_does_not_bootout_itself(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("IPHONE_SYNC_LAUNCHD", "1")
+    runner = _FakeRunner()
+
+    set_start_at_login(True, home_dir=tmp_path, runner=runner)
+
+    commands = [call[1] for call in runner.calls]
+    assert commands == ["enable", "bootstrap"]
 
 
 def test_runner_invoked_with_launchctl_bootout_argv(tmp_path: Path) -> None:
@@ -153,7 +188,8 @@ def test_runner_invoked_with_launchctl_bootout_argv(tmp_path: Path) -> None:
     disable_runner = _FakeRunner()
     set_start_at_login(False, home_dir=tmp_path, runner=disable_runner)
 
-    assert len(disable_runner.calls) == 1
+    commands = [call[1] for call in disable_runner.calls]
+    assert commands == ["bootout", "disable"]
     argv = disable_runner.calls[0]
     assert argv[0] == "launchctl"
     assert argv[1] == "bootout"
@@ -169,7 +205,7 @@ def test_is_start_at_login_false_when_runatload_false(tmp_path: Path) -> None:
             {
                 "Label": LAUNCH_AGENT_LABEL,
                 "RunAtLoad": False,
-                "ProgramArguments": [sys.executable, "-m", "iphone_sync"],
+                "ProgramArguments": [sys.executable, "-m", "iphone_sync", "--background"],
             },
             fh,
         )

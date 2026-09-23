@@ -26,14 +26,24 @@ def cached_thumbnail_path(source: Path) -> Path:
 
 
 def load_cached_thumbnail(source: Path) -> bytes | None:
-    cache = cached_thumbnail_path(source)
-    if cache.exists() and cache.stat().st_mtime >= source.stat().st_mtime:
-        return cache.read_bytes()
+    if not source.exists():
+        return None
+    try:
+        cache = cached_thumbnail_path(source)
+        if cache.exists() and cache.stat().st_mtime >= source.stat().st_mtime:
+            return cache.read_bytes()
+    except OSError:
+        pass
     return None
 
 
 def save_cached_thumbnail(source: Path, jpeg_data: bytes) -> None:
-    cached_thumbnail_path(source).write_bytes(jpeg_data)
+    if not source.exists():
+        return
+    try:
+        cached_thumbnail_path(source).write_bytes(jpeg_data)
+    except OSError:
+        pass
 
 
 def clear_thumbnail_cache() -> None:
